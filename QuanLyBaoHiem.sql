@@ -32,7 +32,6 @@ CREATE TABLE Users (
     UserID INT IDENTITY(1,1) NOT NULL,
     Username NVARCHAR(100) NOT NULL,
     PasswordHash VARBINARY(64) NOT NULL, -- SHA2_256 output size
-    PasswordSalt VARBINARY(64) NOT NULL, -- Salt để tăng cường bảo mật hash
     FullName NVARCHAR(150) NOT NULL,
     Role NVARCHAR(50) NOT NULL, -- Vai trò ('ContractCreator', 'Insured', 'Accountant', 'Supervisor')
     IsActive BIT NOT NULL DEFAULT 1,
@@ -132,13 +131,6 @@ GO
 -- ****** MÃ HÓA ******
 
 -- 1. Master Key (nếu chưa có)
-IF NOT EXISTS (SELECT * FROM sys.database_master_keys)
-BEGIN
-    CREATE MASTER KEY ENCRYPTION BY PASSWORD = 'QuanLyBaoHiem88!'; -- Thay bằng mật khẩu cực mạnh
-END
-GO
-
--- 1. Master Key (nếu chưa có)
 IF NOT EXISTS (SELECT name FROM sys.symmetric_keys WHERE name = '##MS_DatabaseMasterKey##')
 BEGIN
     CREATE MASTER KEY ENCRYPTION BY PASSWORD = 'QuanLyBaoHiem88!'; -- Thay bằng mật khẩu cực mạnh
@@ -182,7 +174,6 @@ GO
 
 -- ****** STORED PROCEDURES ******
 
--- SP Tạo người dùng với Salt
 CREATE PROCEDURE CreateUser
     @Username NVARCHAR(100),
     @Password NVARCHAR(100),
@@ -204,11 +195,11 @@ BEGIN
         RETURN;
     END;
 
-    DECLARE @PasswordSalt VARBINARY(64) = CRYPT_GEN_RANDOM(64);
-    DECLARE @PasswordHash VARBINARY(64) = HASHBYTES('SHA2_256', CONCAT(CAST(@Password AS VARBINARY(MAX)), @PasswordSalt));
+	DECLARE @PasswordHash VARBINARY(64) = HASHBYTES('SHA2_256', CAST(@Password AS VARBINARY(MAX)));
 
-    INSERT INTO Users (Username, PasswordHash, PasswordSalt, FullName, Role, IsActive)
-    VALUES (@Username, @PasswordHash, @PasswordSalt, @FullName, @Role, 1);
+	INSERT INTO Users (Username, PasswordHash, FullName, Role, IsActive)
+	VALUES (@Username, @PasswordHash, @FullName, @Role, 1);
+
 END;
 GO
 
@@ -223,14 +214,12 @@ BEGIN
     SET NOCOUNT ON;
 
     DECLARE @StoredHash VARBINARY(64);
-    DECLARE @StoredSalt VARBINARY(64);
     DECLARE @UserRole NVARCHAR(50);
     DECLARE @UserIsActive BIT;
 
     SELECT
         @UserID = UserID,
         @StoredHash = PasswordHash,
-        @StoredSalt = PasswordSalt,
         @UserRole = Role,
         @UserIsActive = IsActive
     FROM Users
@@ -243,7 +232,7 @@ BEGIN
         RETURN;
     END;
 
-    DECLARE @InputHash VARBINARY(64) = HASHBYTES('SHA2_256', CONCAT(CAST(@Password AS VARBINARY(MAX)), @StoredSalt));
+    DECLARE @InputHash VARBINARY(64) = HASHBYTES('SHA2_256', CAST(@Password AS VARBINARY(MAX)));
 
     IF @InputHash = @StoredHash
     BEGIN
@@ -891,3 +880,75 @@ ADD BLOCK PREDICATE dbo.fn_rls_BlockInsuranceContractsChanges(CAST(SESSION_CONTE
 ADD BLOCK PREDICATE dbo.fn_rls_BlockInsuranceContractsChanges(CAST(SESSION_CONTEXT(N'UserID') AS INT)) 
     ON dbo.InsuranceContracts BEFORE DELETE
 WITH (STATE = ON);
+
+
+-- ****** Dữ liệu mẫu ******
+-- User
+INSERT INTO Users (Username, PasswordHash, FullName, Role, IsActive)
+VALUES 
+(N'admin01', HASHBYTES('SHA2_256', CAST(N'admin@123' AS VARBINARY(MAX))), N'Admin Chính', N'Admin', 1),
+(N'creator01', HASHBYTES('SHA2_256', CAST(N'creator@123' AS VARBINARY(MAX))), N'Nguyễn Văn A', N'ContractCreator', 1),
+(N'creator02', HASHBYTES('SHA2_256', CAST(N'creator@456' AS VARBINARY(MAX))), N'Trần Thị B', N'ContractCreator', 1),
+(N'insured01', HASHBYTES('SHA2_256', CAST(N'insured@123' AS VARBINARY(MAX))), N'Phạm Minh C', N'Insured', 1),
+(N'accountant01', HASHBYTES('SHA2_256', CAST(N'acc@123' AS VARBINARY(MAX))), N'Lê Văn D', N'Accountant', 1),
+(N'supervisor01', HASHBYTES('SHA2_256', CAST(N'sup@123' AS VARBINARY(MAX))), N'Vũ Thị E', N'Supervisor', 1);
+GO
+
+--InsuranceTypes
+INSERT INTO InsuranceTypes (TypeName)
+VALUES 
+(N'Bảo hiểm Y tế'),
+(N'Bảo hiểm Tai nạn'),
+(N'Bảo hiểm Nhân thọ');
+GO
+
+--InsuredPersons
+EXEC CreateInsuredPerson 
+    @FullName = N'Phạm Minh C',
+    @Gender = N'Nam',
+    @DateOfBirth = '1990-05-21',
+    @Workplace = N'Công ty ABC',
+    @PermanentAddress = N'123 Nguyễn Trãi',
+    @TemporaryAddress = N'456 Lê Văn Sỹ',
+    @ContactAddress = N'456 Lê Văn Sỹ',
+    @MedicalHistory = N'Không có tiền sử bệnh lý',
+    @UserID = 4; -- ID của insured01
+
+EXEC CreateInsuredPerson 
+    @FullName = N'Đặng Thị F',
+    @Gender = N'Nữ',
+    @DateOfBirth = '1985-08-10',
+    @Workplace = N'Trường THPT XYZ',
+    @PermanentAddress = N'22 Nguyễn Huệ',
+    @TemporaryAddress = NULL,
+    @ContactAddress = N'22 Nguyễn Huệ',
+    @MedicalHistory = N'Cao huyết áp',
+    @UserID = NULL;
+
+EXEC CreateInsuredPerson 
+    @FullName = N'Hồ Văn G',
+    @Gender = N'Nam',
+    @DateOfBirth = '1978-12-01',
+    @Workplace = N'Bệnh viện 115',
+    @PermanentAddress = N'78 Hoàng Văn Thụ',
+    @TemporaryAddress = NULL,
+    @ContactAddress = N'78 Hoàng Văn Thụ',
+    @MedicalHistory = N'Đái tháo đường',
+    @UserID = NULL;
+GO
+
+
+
+--RoleAssignments
+EXEC AssignAccountantOrSupervisorToType
+    @AssigningUserID = 1, -- admin01
+    @TargetUserID = 5, -- accountant01
+    @InsuranceTypeID = 1,
+    @RoleToAssign = 'Accountant';
+
+EXEC AssignAccountantOrSupervisorToType
+    @AssigningUserID = 1, -- admin01
+    @TargetUserID = 6, -- supervisor01
+    @InsuranceTypeID = 2,
+    @RoleToAssign = 'Supervisor';
+GO

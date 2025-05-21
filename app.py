@@ -69,14 +69,13 @@ def register():
         conn.close()
         return jsonify({"error": "Tên đăng nhập đã tồn tại"}), 400
 
-    # Tạo salt và hash mật khẩu
-    salt = os.urandom(32)
-    password_hash = hashlib.sha256(password.encode('utf-8') + salt).digest()
+    # Hash mật khẩu bằng SHA2_256
+    password_hash = hashlib.sha256(password.encode('utf-8')).digest()
 
     # Thêm người dùng vào cơ sở dữ liệu
     cursor.execute(
-        "INSERT INTO Users (Username, PasswordHash, PasswordSalt, FullName, Role, IsActive) VALUES (?, ?, ?, ?, ?, 1)",
-        (username, password_hash, salt, full_name, role)
+        "INSERT INTO Users (Username, PasswordHash, FullName, Role, IsActive) VALUES (?, ?, ?, ?, 1)",
+        (username, password_hash, full_name, role)
     )
     conn.commit()
     conn.close()
@@ -98,17 +97,17 @@ def login():
     cursor = conn.cursor()
 
     # Lấy thông tin người dùng
-    cursor.execute("SELECT UserID, PasswordHash, PasswordSalt FROM Users WHERE Username = ?", (username,))
+    cursor.execute("SELECT UserID, PasswordHash FROM Users WHERE Username = ? AND IsActive = 1", (username,))
     user = cursor.fetchone()
 
     if not user:
         conn.close()
         return jsonify({"error": "Tên đăng nhập hoặc mật khẩu không đúng"}), 401
 
-    user_id, stored_hash, salt = user
+    user_id, stored_hash = user
 
     # Kiểm tra mật khẩu
-    password_hash = hashlib.sha256(password.encode('utf-8') + salt).digest()
+    password_hash = hashlib.sha256(password.encode('utf-8')).digest()
     if password_hash != stored_hash:
         conn.close()
         return jsonify({"error": "Tên đăng nhập hoặc mật khẩu không đúng"}), 401
