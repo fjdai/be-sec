@@ -1,10 +1,20 @@
 from flask import Flask, render_template, request, jsonify, session
+from flask_cors import CORS
 import pyodbc
 import hashlib
 import os
 
 app = Flask(__name__)
 app.secret_key = "your_secret_key_here"  # Add a secret key for session management
+
+# Enable CORS for the Flask app
+CORS(app, resources={
+    r"/*": {
+        "origins": ["http://example.com", "http://anotherdomain.com"],  # Thay bằng các domain được phép
+        "methods": ["GET", "POST", "PUT", "DELETE"],  # Các method được phép
+        "allow_headers": ["Content-Type", "Authorization"]  # Các header được phép
+    }
+})
 
 
 @app.route("/")
@@ -290,8 +300,8 @@ def create_insurance_contract():
 
 
 # API lấy hợp đồng theo người tạo hợp đồng (ContractCreator) chỉ cho ContractCreator
-@app.route("/insurance-contracts/creator/<int:creator_id>", methods=["GET"])
-def get_insurance_contracts_by_creator(creator_id):
+@app.route("/insurance-contracts/creator", methods=["GET"])
+def get_insurance_contracts_by_creator():
     try:
         # Check if the user is logged in
         current_user = session.get("user")
@@ -308,7 +318,7 @@ def get_insurance_contracts_by_creator(creator_id):
         # Set session context for the current user ID
         cursor.execute("EXEC sp_set_session_context @key = N'UserID', @value = ?", current_user["user_id"])
 
-        # Fetch insurance contracts by ContractCreatorUserID
+        # Fetch insurance contracts by ContractCreatorUserID using session user ID
         cursor.execute(
             """
             SELECT ContractID, ContractNumber, InsuranceTypeID, InsuredPersonID, StartDate, EndDate, 
@@ -316,7 +326,59 @@ def get_insurance_contracts_by_creator(creator_id):
             FROM InsuranceContracts
             WHERE ContractCreatorUserID = ?
             """,
-            (creator_id,)
+            (current_user["user_id"],)  
+        )
+
+        contracts = [
+            {
+                "contract_id": row[0],
+                "contract_number": row[1],
+                "insurance_type_id": row[2],
+                "insured_person_id": row[3],
+                "start_date": row[4],
+                "end_date": row[5],
+                "payment_frequency": row[6],
+                "status": row[7],
+                "created_at": row[8],
+            }
+            for row in cursor.fetchall()
+        ]
+
+        conn.close()
+        return jsonify(contracts), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# API lấy hợp đồng theo loại bảo hiểm (InsuranceTypeID) chỉ cho Accountant và Supervisor
+@app.route("/insurance-contracts/type", methods=["GET"])
+def get_insurance_contracts_by_type(insurance_type_id):
+    try:
+        # Check if the user is logged in
+        current_user = session.get("user")
+        if not current_user:
+            return jsonify({"error": "Bạn chưa đăng nhập"}), 401
+
+        # Restrict access to Accountant and Supervisor roles
+        if current_user.get("role") not in ["Accountant", "Supervisor"]:
+            return jsonify({"error": "Bạn không có quyền truy cập"}), 403
+
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Set session context for the current user ID
+        cursor.execute("EXEC sp_set_session_context @key = N'UserID', @value = ?", current_user["user_id"])
+
+        # Fetch insurance contracts by InsuranceTypeID
+        cursor.execute(
+            """
+            SELECT ContractID, ContractNumber, InsuranceTypeID, InsuredPersonID, StartDate, EndDate, 
+                   PaymentFrequency, Status, CreatedAt
+            FROM InsuranceContracts
+            WHERE InsuranceTypeID = ?
+            """,
+            (insurance_type_id,)
         )
 
         contracts = [
