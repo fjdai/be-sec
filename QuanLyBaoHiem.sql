@@ -189,7 +189,7 @@ BEGIN
         RETURN;
     END;
 
-    IF @Role NOT IN ('ContractCreator', 'Insured', 'Accountant', 'Supervisor')
+    IF @Role NOT IN ('ContractCreator', 'Insured', 'Accountant', 'Supervisor', 'Admin')
     BEGIN
         RAISERROR('Vai trò không hợp lệ.', 16, 1);
         RETURN;

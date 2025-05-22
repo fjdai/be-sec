@@ -1,9 +1,10 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, session
 import pyodbc
 import hashlib
 import os
 
 app = Flask(__name__)
+app.secret_key = "your_secret_key_here"  # Add a secret key for session management
 
 
 @app.route("/")
@@ -28,14 +29,14 @@ def get_db_connection():
     return connection
 
 
-@app.route("/data")
-def data():
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT TOP 10 * FROM your_table_name")  # Thay bằng tên bảng của bạn
-    rows = cursor.fetchall()
-    conn.close()
-    return render_template("data.html", data=rows)
+# @app.route("/data")
+# def data():
+#     conn = get_db_connection()
+#     cursor = conn.cursor()
+#     cursor.execute("SELECT TOP 10 * FROM your_table_name")  
+#     rows = cursor.fetchall()
+#     conn.close()
+#     return render_template("data.html", data=rows)
 
 
 @app.route("/check-db")
@@ -59,6 +60,17 @@ def register():
 
     if not username or not password or not full_name or not role:
         return jsonify({"error": "Thiếu thông tin đăng ký"}), 400
+
+     # Kiểm tra quyền của người dùng hiện tại
+    current_user = session.get("user")
+    if not current_user:
+        return jsonify({"error": "Bạn chưa đăng nhập"}), 401
+
+    current_role = current_user.get("role")
+    if current_role == "ContractCreator" and role != "Insured":
+        return jsonify({"error": "Contract Creator chỉ được tạo tài khoản Insured"}), 403
+    elif current_role != "Admin" and current_role != "ContractCreator":
+        return jsonify({"error": "Bạn không có quyền tạo tài khoản"}), 403
 
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -97,14 +109,14 @@ def login():
     cursor = conn.cursor()
 
     # Lấy thông tin người dùng
-    cursor.execute("SELECT UserID, PasswordHash FROM Users WHERE Username = ? AND IsActive = 1", (username,))
+    cursor.execute("SELECT UserID, Username, FullName, Role, IsActive, PasswordHash FROM Users WHERE Username = ? AND IsActive = 1", (username,))
     user = cursor.fetchone()
 
     if not user:
         conn.close()
         return jsonify({"error": "Tên đăng nhập hoặc mật khẩu không đúng"}), 401
 
-    user_id, stored_hash = user
+    user_id, username, full_name, role, is_active, stored_hash = user
 
     # Kiểm tra mật khẩu
     password_hash = hashlib.sha256(password.encode('utf-8')).digest()
@@ -112,8 +124,223 @@ def login():
         conn.close()
         return jsonify({"error": "Tên đăng nhập hoặc mật khẩu không đúng"}), 401
 
+    # Gán SESSION_CONTEXT để RLS hoạt động
+    cursor.execute("EXEC sp_set_session_context @key = N'UserID', @value = ?", user_id)
+
+    # Lưu thông tin người dùng vào session
+    session["user"] = {
+        "user_id": user_id,
+        "username": username,
+        "full_name": full_name,
+        "role": role,
+        "is_active": is_active
+    }
+
     conn.close()
-    return jsonify({"message": "Đăng nhập thành công", "user_id": user_id}), 200
+    return jsonify({
+        "message": "Đăng nhập thành công",
+        "user": session["user"]
+    }), 200
+
+
+# API lấy thông tin người dùng hiện tại
+@app.route("/current-user", methods=["GET"])
+def current_user():
+    if "user" in session:
+        return jsonify(session["user"])
+    return jsonify({"error": "Chưa đăng nhập"}), 401
+
+
+# API đăng xuất
+@app.route("/logout", methods=["POST"])
+def logout():
+    session.pop("user", None)  # Remove the user from the session
+    return jsonify({"message": "Đăng xuất thành công"}), 200
+
+
+# API lấy danh sách hợp đồng chỉ cho ContractCreator
+@app.route("/insurance-types", methods=["GET"])
+def get_insurance_types():
+    try:
+        # Check if the user is logged in
+        current_user = session.get("user")
+        if not current_user:
+            return jsonify({"error": "Bạn chưa đăng nhập"}), 401
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Fetch all insurance types
+        cursor.execute("SELECT InsuranceTypeID, TypeName FROM InsuranceTypes")
+        insurance_types = [
+            {"id": row[0], "name": row[1]} for row in cursor.fetchall()
+        ]
+
+        conn.close()
+        return jsonify(insurance_types), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# API lấy danh sách người được bảo hiểm chỉ cho ContractCreator
+@app.route("/insured-persons/<int:person_id>", methods=["GET"])
+def get_insured_person_by_id(person_id):
+    try:
+        # Check if the user is logged in
+        current_user = session.get("user")
+        if not current_user:
+            return jsonify({"error": "Bạn chưa đăng nhập"}), 401
+
+        # Restrict access to ContractCreator role
+        if current_user.get("role") != "ContractCreator":
+            return jsonify({"error": "Bạn không có quyền truy cập"}), 403
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Fetch insured person by ID
+        cursor.execute(
+            "SELECT InsuredPersonID, FullName, Gender, DateOfBirth, Workplace, PermanentAddress, TemporaryAddress, ContactAddress FROM InsuredPersons WHERE InsuredPersonID = ?",
+            (person_id,)
+        )
+        row = cursor.fetchone()
+
+        if not row:
+            conn.close()
+            return jsonify({"error": "Người được bảo hiểm không tồn tại"}), 404
+
+        insured_person = {
+            "id": row[0],
+            "full_name": row[1],
+            "gender": row[2],
+            "date_of_birth": row[3],
+            "workplace": row[4],
+            "permanent_address": row[5],
+            "temporary_address": row[6],
+            "contact_address": row[7],
+        }
+
+        conn.close()
+        return jsonify(insured_person), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# API tạo hợp đồng bảo hiểm chỉ cho ContractCreator
+@app.route("/insurance-contracts", methods=["POST"])
+def create_insurance_contract():
+    try:
+        # Check if the user is logged in
+        current_user = session.get("user")
+        if not current_user:
+            return jsonify({"error": "Bạn chưa đăng nhập"}), 401
+
+        # Restrict access to ContractCreator role
+        if current_user.get("role") != "ContractCreator":
+            return jsonify({"error": "Bạn không có quyền truy cập"}), 403
+
+        data = request.json
+        contract_number = data.get("contract_number")
+        insurance_type_id = data.get("insurance_type_id")
+        insured_person_id = data.get("insured_person_id")
+        start_date = data.get("start_date")
+        end_date = data.get("end_date")
+        insurance_value = data.get("insurance_value")
+        premium_amount = data.get("premium_amount")
+        payment_frequency = data.get("payment_frequency")
+        status = data.get("status", "Mới")
+
+        if not all([contract_number, insurance_type_id, insured_person_id, start_date, end_date, insurance_value, premium_amount, payment_frequency]):
+            return jsonify({"error": "Thiếu thông tin hợp đồng"}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Open the symmetric key for encryption
+        cursor.execute("OPEN SYMMETRIC KEY AppSymKey DECRYPTION BY CERTIFICATE AppCert")
+
+        # Set session context for the current user ID
+        cursor.execute("EXEC sp_set_session_context @key = N'UserID', @value = ?", current_user["user_id"])
+
+        # Insert the insurance contract
+        cursor.execute(
+            """
+            INSERT INTO InsuranceContracts (
+                ContractNumber, InsuranceTypeID, InsuredPersonID, ContractCreatorUserID,
+                StartDate, EndDate, InsuranceValue, PremiumAmount, PaymentFrequency, Status, CreatedAt
+            )
+            VALUES (?, ?, ?, ?, ?, ?, EncryptByKey(Key_GUID('AppSymKey'), CAST(? AS NVARCHAR(MAX))),
+                    EncryptByKey(Key_GUID('AppSymKey'), CAST(? AS NVARCHAR(MAX))), ?, ?, SYSDATETIME())
+            """,
+            (
+                contract_number, insurance_type_id, insured_person_id, current_user["user_id"],
+                start_date, end_date, insurance_value, premium_amount, payment_frequency, status
+            )
+        )
+
+        # Close the symmetric key after encryption
+        cursor.execute("CLOSE SYMMETRIC KEY AppSymKey")
+
+        conn.commit()
+        conn.close()
+
+        return jsonify({"message": "Hợp đồng bảo hiểm được tạo thành công"}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# API lấy hợp đồng theo người tạo hợp đồng (ContractCreator) chỉ cho ContractCreator
+@app.route("/insurance-contracts/creator/<int:creator_id>", methods=["GET"])
+def get_insurance_contracts_by_creator(creator_id):
+    try:
+        # Check if the user is logged in
+        current_user = session.get("user")
+        if not current_user:
+            return jsonify({"error": "Bạn chưa đăng nhập"}), 401
+
+        # Restrict access to ContractCreator role
+        if current_user.get("role") != "ContractCreator":
+            return jsonify({"error": "Bạn không có quyền truy cập"}), 403
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Set session context for the current user ID
+        cursor.execute("EXEC sp_set_session_context @key = N'UserID', @value = ?", current_user["user_id"])
+
+        # Fetch insurance contracts by ContractCreatorUserID
+        cursor.execute(
+            """
+            SELECT ContractID, ContractNumber, InsuranceTypeID, InsuredPersonID, StartDate, EndDate, 
+                   PaymentFrequency, Status, CreatedAt
+            FROM InsuranceContracts
+            WHERE ContractCreatorUserID = ?
+            """,
+            (creator_id,)
+        )
+
+        contracts = [
+            {
+                "contract_id": row[0],
+                "contract_number": row[1],
+                "insurance_type_id": row[2],
+                "insured_person_id": row[3],
+                "start_date": row[4],
+                "end_date": row[5],
+                "payment_frequency": row[6],
+                "status": row[7],
+                "created_at": row[8],
+            }
+            for row in cursor.fetchall()
+        ]
+
+        conn.close()
+        return jsonify(contracts), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+
 
 
 if __name__ == "__main__":
