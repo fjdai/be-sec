@@ -318,10 +318,15 @@ def get_insurance_contracts_by_creator():
         # Set session context for the current user ID
         cursor.execute("EXEC sp_set_session_context @key = N'UserID', @value = ?", current_user["user_id"])
 
-        # Fetch insurance contracts by ContractCreatorUserID using session user ID
+        # Mở khóa symmetric key để giải mã
+        cursor.execute("OPEN SYMMETRIC KEY AppSymKey DECRYPTION BY CERTIFICATE AppCert")
+
+        # Fetch insurance contracts by ContractCreatorUserID using session user ID and decrypt columns
         cursor.execute(
             """
             SELECT ContractID, ContractNumber, InsuranceTypeID, InsuredPersonID, StartDate, EndDate, 
+                   CAST(DecryptByKey(InsuranceValue) AS NVARCHAR(MAX)) AS InsuranceValue,
+                   CAST(DecryptByKey(PremiumAmount) AS NVARCHAR(MAX)) AS PremiumAmount,
                    PaymentFrequency, Status, CreatedAt
             FROM InsuranceContracts
             WHERE ContractCreatorUserID = ?
@@ -337,12 +342,17 @@ def get_insurance_contracts_by_creator():
                 "insured_person_id": row[3],
                 "start_date": row[4],
                 "end_date": row[5],
-                "payment_frequency": row[6],
-                "status": row[7],
-                "created_at": row[8],
+                "insurance_value": row[6],
+                "premium_amount": row[7],
+                "payment_frequency": row[8],
+                "status": row[9],
+                "created_at": row[10],
             }
             for row in cursor.fetchall()
         ]
+
+        # Đóng symmetric key sau khi giải mã
+        cursor.execute("CLOSE SYMMETRIC KEY AppSymKey")
 
         conn.close()
         return jsonify(contracts), 200
@@ -350,35 +360,47 @@ def get_insurance_contracts_by_creator():
         return jsonify({"error": str(e)}), 500
 
 
-# API lấy hợp đồng theo loại bảo hiểm (InsuranceTypeID) chỉ cho Accountant và Supervisor
+# API lấy hợp đồng theo loại bảo hiểm (InsuranceTypeID) và giải mã các cột đã mã hóa
 @app.route("/insurance-contracts/type", methods=["GET"])
-def get_insurance_contracts_by_type(insurance_type_id):
+def get_insurance_contracts_with_decryption():
     try:
         # Check if the user is logged in
         current_user = session.get("user")
         if not current_user:
             return jsonify({"error": "Bạn chưa đăng nhập"}), 401
 
-        # Restrict access to Accountant and Supervisor roles
-        if current_user.get("role") not in ["Accountant", "Supervisor"]:
-            return jsonify({"error": "Bạn không có quyền truy cập"}), 403
-
-        
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        # Set session context for the current user ID
-        cursor.execute("EXEC sp_set_session_context @key = N'UserID', @value = ?", current_user["user_id"])
+        # Lấy danh sách InsuranceTypeID của user từ bảng RoleAssignments
+        cursor.execute(
+            """
+            SELECT DISTINCT InsuranceTypeID
+            FROM RoleAssignments
+            WHERE UserID = ?
+            """,
+            (current_user["user_id"],)
+        )
+        insurance_type_ids = [row[0] for row in cursor.fetchall()]
 
-        # Fetch insurance contracts by InsuranceTypeID
+        if not insurance_type_ids:
+            conn.close()
+            return jsonify({"error": "Người dùng không có quyền trên bất kỳ loại bảo hiểm nào"}), 403
+
+        # Mở khóa symmetric key để giải mã
+        cursor.execute("OPEN SYMMETRIC KEY AppSymKey DECRYPTION BY CERTIFICATE AppCert")
+
+        # Lấy danh sách hợp đồng bảo hiểm tương ứng với các InsuranceTypeID và giải mã các cột
         cursor.execute(
             """
             SELECT ContractID, ContractNumber, InsuranceTypeID, InsuredPersonID, StartDate, EndDate, 
+                   CAST(DecryptByKey(InsuranceValue) AS NVARCHAR(MAX)) AS InsuranceValue,
+                   CAST(DecryptByKey(PremiumAmount) AS NVARCHAR(MAX)) AS PremiumAmount,
                    PaymentFrequency, Status, CreatedAt
             FROM InsuranceContracts
-            WHERE InsuranceTypeID = ?
-            """,
-            (insurance_type_id,)
+            WHERE InsuranceTypeID IN ({})
+            """.format(",".join("?" for _ in insurance_type_ids)),
+            insurance_type_ids
         )
 
         contracts = [
@@ -389,17 +411,110 @@ def get_insurance_contracts_by_type(insurance_type_id):
                 "insured_person_id": row[3],
                 "start_date": row[4],
                 "end_date": row[5],
-                "payment_frequency": row[6],
-                "status": row[7],
-                "created_at": row[8],
+                "insurance_value": row[6],
+                "premium_amount": row[7],
+                "payment_frequency": row[8],
+                "status": row[9],
+                "created_at": row[10],
             }
             for row in cursor.fetchall()
         ]
+
+        # Đóng symmetric key sau khi giải mã
+        cursor.execute("CLOSE SYMMETRIC KEY AppSymKey")
 
         conn.close()
         return jsonify(contracts), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+# API lấy toàn bộ audit logs chỉ cho Admin
+@app.route("/audit", methods=["GET"])
+def get_audit():
+    try:
+        # Check if the user is logged in
+        current_user = session.get("user")
+        if not current_user:
+            return jsonify({"error": "Bạn chưa đăng nhập"}), 401
+
+        # Restrict access to Admin role
+        if current_user.get("role") != "Admin":
+            return jsonify({"error": "Bạn không có quyền truy cập"}), 403
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Fetch all audit logs
+        cursor.execute("SELECT LogID, TableName, ActionType, RecordPK, ChangedByUserID, ChangeDate, Details FROM AuditLogs")
+        audit_logs = [
+            {
+                "log_id": row[0],
+                "table_name": row[1],
+                "action_type": row[2],
+                "record_pk": row[3],
+                "changed_by_user_id": row[4],
+                "change_date": row[5],
+                "details": row[6]
+            } 
+            for row in cursor.fetchall()
+        ]
+
+        conn.close()
+        return jsonify(audit_logs), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# API lấy audit logs theo trang chỉ cho Admin
+@app.route("/audit/paginated", methods=["GET"])
+def get_audit_paginated():
+    try:
+        # Check if the user is logged in
+        current_user = session.get("user")
+        if not current_user:
+            return jsonify({"error": "Bạn chưa đăng nhập"}), 401
+
+        # Restrict access to Admin role
+        if current_user.get("role") != "Admin":
+            return jsonify({"error": "Bạn không có quyền truy cập"}), 403
+
+        # Get pagination parameters
+        page = request.args.get("page", default=1, type=int)
+        per_page = request.args.get("per_page", default=10, type=int)
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Fetch paginated audit logs
+        offset = (page - 1) * per_page
+        cursor.execute(
+            """
+            SELECT LogID, TableName, ActionType, RecordPK, ChangedByUserID, ChangeDate, Details 
+            FROM AuditLogs 
+            ORDER BY ChangeDate DESC 
+            OFFSET ? ROWS FETCH NEXT ? ROWS ONLY
+            """,
+            (offset, per_page)
+        )
+        audit_logs = [
+            {
+                "log_id": row[0],
+                "table_name": row[1],
+                "action_type": row[2],
+                "record_pk": row[3],
+                "changed_by_user_id": row[4],
+                "change_date": row[5],
+                "details": row[6]
+            } 
+            for row in cursor.fetchall()
+        ]
+
+        conn.close()
+        return jsonify(audit_logs), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 
 
