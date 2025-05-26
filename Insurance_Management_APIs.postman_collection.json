@@ -1,0 +1,412 @@
+{
+  "info": {
+    "name": "Insurance Management APIs",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Home",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "http://localhost:5000/",
+          "host": ["http://localhost"],
+          "port": "5000",
+          "path": [""]
+        }
+      }
+    },
+    {
+      "name": "About",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "http://localhost:5000/about",
+          "host": ["http://localhost"],
+          "port": "5000",
+          "path": ["about"]
+        }
+      }
+    },
+    {
+      "name": "Check DB",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "http://localhost:5000/check-db",
+          "host": ["http://localhost"],
+          "port": "5000",
+          "path": ["check-db"]
+        }
+      }
+    },
+    {
+      "name": "Register",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"newuser\",\n  \"password\": \"password123\",\n  \"full_name\": \"New User\",\n  \"role\": \"User\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:5000/register",
+          "host": ["http://localhost"],
+          "port": "5000",
+          "path": ["register"]
+        }
+      }
+    },
+    {
+      "name": "Login",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"adminpassword\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:5000/login",
+          "host": ["http://localhost"],
+          "port": "5000",
+          "path": ["login"]
+        }
+      }
+    },
+    {
+      "name": "Current User",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "http://localhost:5000/current-user",
+          "host": ["http://localhost"],
+          "port": "5000",
+          "path": ["current-user"]
+        }
+      }
+    },
+    {
+      "name": "Logout",
+      "request": {
+        "method": "POST",
+        "url": {
+          "raw": "http://localhost:5000/logout",
+          "host": ["http://localhost"],
+          "port": "5000",
+          "path": ["logout"]
+        }
+      }
+    },
+    {
+      "name": "Get Insurance Types",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "http://localhost:5000/insurance-types",
+          "host": ["http://localhost"],
+          "port": "5000",
+          "path": ["insurance-types"]
+        }
+      }
+    },
+    {
+      "name": "Get Insured Person by ID",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "http://localhost:5000/insured-persons/:person_id",
+          "host": ["http://localhost"],
+          "port": "5000",
+          "path": ["insured-persons", ":person_id"]
+        }
+      }
+    },
+    {
+      "name": "Create Insurance Contract",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"contract_number\": \"C12345\",\n  \"insurance_type_id\": 1,\n  \"insured_person_id\": 3,\n  \"start_date\": \"2025-06-01\",\n  \"end_date\": \"2026-06-01\",\n  \"insurance_value\": \"1000000\",\n  \"premium_amount\": \"50000\",\n  \"payment_frequency\": \"Monthly\",\n  \"status\": \"New\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:5000/insurance-contracts",
+          "host": ["http://localhost"],
+          "port": "5000",
+          "path": ["insurance-contracts"]
+        }
+      }
+    },
+    {
+      "name": "Get Insurance Contracts by Creator",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "http://localhost:5000/insurance-contracts/creator",
+          "host": ["http://localhost"],
+          "port": "5000",
+          "path": ["insurance-contracts", "creator"]
+        }
+      }
+    },
+    {
+      "name": "Get Insurance Contracts by Type",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "http://localhost:5000/insurance-contracts/type",
+          "host": ["http://localhost"],
+          "port": "5000",
+          "path": ["insurance-contracts", "type"]
+        }
+      }
+    },
+    {
+      "name": "Get Audit Logs",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "http://localhost:5000/audit",
+          "host": ["http://localhost"],
+          "port": "5000",
+          "path": ["audit"]
+        }
+      }
+    },
+    {
+      "name": "Get Paginated Audit Logs",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "http://localhost:5000/audit/paginated",
+          "host": ["http://localhost"],
+          "port": "5000",
+          "path": ["audit", "paginated"]
+        }
+      }
+    },
+    {
+      "name": "Assign Role",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"user_id\": 2,\n  \"insurance_type_id\": 1,\n  \"assigned_role\": \"Supervisor\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:5000/assign-role",
+          "host": ["http://localhost"],
+          "port": "5000",
+          "path": ["assign-role"]
+        }
+      }
+    },
+    {
+      "name": "Update Insured Person",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"full_name\": \"Updated Name\",\n  \"gender\": \"Male\",\n  \"date_of_birth\": \"1990-01-01\",\n  \"workplace\": \"Company A\",\n  \"permanent_address\": \"123 Main St\",\n  \"temporary_address\": \"456 Elm St\",\n  \"contact_address\": \"789 Oak St\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:5000/insured-persons/:person_id",
+          "host": ["http://localhost"],
+          "port": "5000",
+          "path": ["insured-persons", ":person_id"]
+        }
+      }
+    },
+    {
+      "name": "Deactivate Insured Account",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "http://localhost:5000/insured/:insured_id/deactivate",
+          "host": ["http://localhost"],
+          "port": "5000",
+          "path": ["insured", ":insured_id", "deactivate"]
+        }
+      }
+    },
+    {
+      "name": "Deactivate User Account",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "http://localhost:5000/users/:user_id/deactivate",
+          "host": ["http://localhost"],
+          "port": "5000",
+          "path": ["users", ":user_id", "deactivate"]
+        }
+      }
+    },
+    {
+      "name": "Get All Users",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "http://localhost:5000/users",
+          "host": ["http://localhost"],
+          "port": "5000",
+          "path": ["users"]
+        }
+      }
+    },
+    {
+      "name": "Update User",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"full_name\": \"Updated Name\",\n  \"role\": \"User\",\n  \"is_active\": true\n}"
+        },
+        "url": {
+          "raw": "http://localhost:5000/users/:user_id",
+          "host": ["http://localhost"],
+          "port": "5000",
+          "path": ["users", ":user_id"]
+        }
+      }
+    },
+    {
+      "name": "Delete User",
+      "request": {
+        "method": "DELETE",
+        "url": {
+          "raw": "http://localhost:5000/users/:user_id",
+          "host": ["http://localhost"],
+          "port": "5000",
+          "path": ["users", ":user_id"]
+        }
+      }
+    },
+    {
+      "name": "Get Users by Role",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "http://localhost:5000/users/role/:role",
+          "host": ["http://localhost"],
+          "port": "5000",
+          "path": ["users", "role", ":role"]
+        }
+      }
+    },
+    {
+      "name": "Delete Insurance Contract",
+      "request": {
+        "method": "DELETE",
+        "url": {
+          "raw": "http://localhost:5000/insurance-contracts/:contract_id",
+          "host": ["http://localhost"],
+          "port": "5000",
+          "path": ["insurance-contracts", ":contract_id"]
+        }
+      }
+    },
+    {
+      "name": "Update Insurance Contract",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"insurance_value\": \"1000000\",\n  \"premium_amount\": \"50000\",\n  \"status\": \"Updated\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:5000/insurance-contracts/:contract_id",
+          "host": ["http://localhost"],
+          "port": "5000",
+          "path": ["insurance-contracts", ":contract_id"]
+        }
+      }
+    },
+    {
+      "name": "Update Role Assignment",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"insurance_type_id\": 1,\n  \"assigned_role\": \"Supervisor\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:5000/assign-role/:role_id",
+          "host": ["http://localhost"],
+          "port": "5000",
+          "path": ["assign-role", ":role_id"]
+        }
+      }
+    },
+    {
+      "name": "Delete Role Assignment",
+      "request": {
+        "method": "DELETE",
+        "url": {
+          "raw": "http://localhost:5000/assign-role/:role_id",
+          "host": ["http://localhost"],
+          "port": "5000",
+          "path": ["assign-role", ":role_id"]
+        }
+      }
+    }
+  ]
+}

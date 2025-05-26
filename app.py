@@ -516,9 +516,486 @@ def get_audit_paginated():
         return jsonify({"error": str(e)}), 500
 
 
+# API gán vai trò cho người dùng chỉ cho Admin
+@app.route("/assign-role", methods=["POST"])
+def assign_role():
+    try:
+        # Check if the user is logged in
+        current_user = session.get("user")
+        if not current_user:
+            return jsonify({"error": "Bạn chưa đăng nhập"}), 401
+
+        # Restrict access to Admin role
+        if current_user.get("role") != "Admin":
+            return jsonify({"error": "Bạn không có quyền truy cập"}), 403
+
+        data = request.json
+        user_id = data.get("user_id")
+        insurance_type_id = data.get("insurance_type_id")
+        assigned_role = data.get("assigned_role")
+
+        if not all([user_id, insurance_type_id, assigned_role]):
+            return jsonify({"error": "Thiếu thông tin cần thiết"}), 400
+
+        if assigned_role not in ["Accountant", "Supervisor"]:
+            return jsonify({"error": "Vai trò không hợp lệ"}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Insert the role assignment
+        cursor.execute(
+            """
+            INSERT INTO RoleAssignments (UserID, InsuranceTypeID, AssignedRole)
+            VALUES (?, ?, ?)
+            """,
+            (user_id, insurance_type_id, assigned_role)
+        )
+
+        conn.commit()
+        conn.close()
+
+        return jsonify({"message": "Gán vai trò thành công"}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
+# API sửa gán vai trò chỉ cho Admin
+@app.route("/assign-role/<int:role_id>", methods=["PUT"])
+def update_role_assignment(role_id):
+    try:
+        # Check if the user is logged in
+        current_user = session.get("user")
+        if not current_user:
+            return jsonify({"error": "Bạn chưa đăng nhập"}), 401
+
+        # Restrict access to Admin role
+        if current_user.get("role") != "Admin":
+            return jsonify({"error": "Bạn không có quyền truy cập"}), 403
+
+        data = request.json
+        insurance_type_id = data.get("insurance_type_id")
+        assigned_role = data.get("assigned_role")
+
+        if not all([insurance_type_id, assigned_role]):
+            return jsonify({"error": "Thiếu thông tin cần thiết"}), 400
+
+        if assigned_role not in ["Accountant", "Supervisor"]:
+            return jsonify({"error": "Vai trò không hợp lệ"}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Update the role assignment
+        cursor.execute(
+            """
+            UPDATE RoleAssignments
+            SET InsuranceTypeID = ?, AssignedRole = ?
+            WHERE RoleID = ?
+            """,
+            (insurance_type_id, assigned_role, role_id)
+        )
+
+        conn.commit()
+        conn.close()
+
+        return jsonify({"message": "Cập nhật vai trò thành công"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
-if __name__ == "__main__":
-    app.run(debug=True)
+# API xóa gán vai trò chỉ cho Admin
+@app.route("/assign-role/<int:role_id>", methods=["DELETE"])
+def delete_role_assignment(role_id):
+    try:
+        # Check if the user is logged in
+        current_user = session.get("user")
+        if not current_user:
+            return jsonify({"error": "Bạn chưa đăng nhập"}), 401
+
+        # Restrict access to Admin role
+        if current_user.get("role") != "Admin":
+            return jsonify({"error": "Bạn không có quyền truy cập"}), 403
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Delete the role assignment
+        cursor.execute("DELETE FROM RoleAssignments WHERE RoleID = ?", (role_id,))
+
+        conn.commit()
+        conn.close()
+
+        return jsonify({"message": "Xóa vai trò thành công"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# API xóa hợp đồng bảo hiểm chỉ cho ContractCreator
+@app.route("/insurance-contracts/<int:contract_id>", methods=["DELETE"])
+def delete_insurance_contract(contract_id):
+    try:
+        # Check if the user is logged in
+        current_user = session.get("user")
+        if not current_user:
+            return jsonify({"error": "Bạn chưa đăng nhập"}), 401
+
+        # Restrict access to ContractCreator role
+        if current_user.get("role") != "ContractCreator":
+            return jsonify({"error": "Bạn không có quyền truy cập"}), 403
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Check if the contract exists and belongs to the current user
+        cursor.execute(
+            "SELECT ContractID FROM InsuranceContracts WHERE ContractID = ? AND ContractCreatorUserID = ?",
+            (contract_id, current_user["user_id"])
+        )
+        contract = cursor.fetchone()
+
+        if not contract:
+            conn.close()
+            return jsonify({"error": "Hợp đồng không tồn tại hoặc bạn không có quyền xóa"}), 404
+
+        # Delete the contract
+        cursor.execute("DELETE FROM InsuranceContracts WHERE ContractID = ?", (contract_id,))
+        conn.commit()
+        conn.close()
+
+        return jsonify({"message": "Xóa hợp đồng thành công"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# API sửa hợp đồng bảo hiểm chỉ cho ContractCreator
+@app.route("/insurance-contracts/<int:contract_id>", methods=["PUT"])
+def update_insurance_contract(contract_id):
+    try:
+        # Check if the user is logged in
+        current_user = session.get("user")
+        if not current_user:
+            return jsonify({"error": "Bạn chưa đăng nhập"}), 401
+
+        # Restrict access to ContractCreator role
+        if current_user.get("role") != "ContractCreator":
+            return jsonify({"error": "Bạn không có quyền truy cập"}), 403
+
+        data = request.json
+        insurance_value = data.get("insurance_value")
+        premium_amount = data.get("premium_amount")
+        status = data.get("status")
+
+        if not all([insurance_value, premium_amount, status]):
+            return jsonify({"error": "Thiếu thông tin cần thiết"}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Check if the contract exists and belongs to the current user
+        cursor.execute(
+            "SELECT ContractID FROM InsuranceContracts WHERE ContractID = ? AND ContractCreatorUserID = ?",
+            (contract_id, current_user["user_id"])
+        )
+        contract = cursor.fetchone()
+
+        if not contract:
+            conn.close()
+            return jsonify({"error": "Hợp đồng không tồn tại hoặc bạn không có quyền sửa"}), 404
+
+        # Open the symmetric key for encryption
+        cursor.execute("OPEN SYMMETRIC KEY AppSymKey DECRYPTION BY CERTIFICATE AppCert")
+
+        # Update the contract
+        cursor.execute(
+            """
+            UPDATE InsuranceContracts
+            SET InsuranceValue = EncryptByKey(Key_GUID('AppSymKey'), CAST(? AS NVARCHAR(MAX))),
+                PremiumAmount = EncryptByKey(Key_GUID('AppSymKey'), CAST(? AS NVARCHAR(MAX))),
+                Status = ?
+            WHERE ContractID = ?
+            """,
+            (insurance_value, premium_amount, status, contract_id)
+        )
+
+        # Close the symmetric key after encryption
+        cursor.execute("CLOSE SYMMETRIC KEY AppSymKey")
+
+        conn.commit()
+        conn.close()
+
+        return jsonify({"message": "Cập nhật hợp đồng thành công"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# API sửa thông tin người được bảo hiểm chỉ cho ContractCreator
+@app.route("/insured-persons/<int:person_id>", methods=["PUT"])
+def update_insured_person(person_id):
+    try:
+        # Check if the user is logged in
+        current_user = session.get("user")
+        if not current_user:
+            return jsonify({"error": "Bạn chưa đăng nhập"}), 401
+
+        # Restrict access to ContractCreator role
+        if current_user.get("role") != "ContractCreator":
+            return jsonify({"error": "Bạn không có quyền truy cập"}), 403
+
+        data = request.json
+        full_name = data.get("full_name")
+        gender = data.get("gender")
+        date_of_birth = data.get("date_of_birth")
+        workplace = data.get("workplace")
+        permanent_address = data.get("permanent_address")
+        temporary_address = data.get("temporary_address")
+        contact_address = data.get("contact_address")
+
+        if not all([full_name, gender, date_of_birth, workplace, permanent_address, temporary_address, contact_address]):
+            return jsonify({"error": "Thiếu thông tin cần thiết"}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Check if the insured person exists
+        cursor.execute(
+            "SELECT InsuredPersonID FROM InsuredPersons WHERE InsuredPersonID = ?",
+            (person_id,)
+        )
+        insured_person = cursor.fetchone()
+
+        if not insured_person:
+            conn.close()
+            return jsonify({"error": "Người được bảo hiểm không tồn tại"}), 404
+
+        # Update the insured person's information
+        cursor.execute(
+            """
+            UPDATE InsuredPersons
+            SET FullName = ?, Gender = ?, DateOfBirth = ?, Workplace = ?,
+                PermanentAddress = ?, TemporaryAddress = ?, ContactAddress = ?
+            WHERE InsuredPersonID = ?
+            """,
+            (full_name, gender, date_of_birth, workplace, permanent_address, temporary_address, contact_address, person_id)
+        )
+
+        conn.commit()
+        conn.close()
+
+        return jsonify({"message": "Cập nhật thông tin người được bảo hiểm thành công"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# API lấy danh sách tất cả người dùng chỉ cho Admin
+@app.route("/users", methods=["GET"])
+def get_all_users():
+    try:
+        # Check if the user is logged in
+        current_user = session.get("user")
+        if not current_user:
+            return jsonify({"error": "Bạn chưa đăng nhập"}), 401
+
+        # Restrict access to Admin role
+        if current_user.get("role") != "Admin":
+            return jsonify({"error": "Bạn không có quyền truy cập"}), 403
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Fetch all users
+        cursor.execute("SELECT UserID, Username, FullName, Role, IsActive FROM Users")
+        users = [
+            {
+                "user_id": row[0],
+                "username": row[1],
+                "full_name": row[2],
+                "role": row[3],
+                "is_active": row[4]
+            }
+            for row in cursor.fetchall()
+        ]
+
+        conn.close()
+        return jsonify(users), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# API sửa thông tin người dùng chỉ cho Admin
+@app.route("/users/<int:user_id>", methods=["PUT"])
+def update_user(user_id):
+    try:
+        # Check if the user is logged in
+        current_user = session.get("user")
+        if not current_user:
+            return jsonify({"error": "Bạn chưa đăng nhập"}), 401
+
+        # Restrict access to Admin role
+        if current_user.get("role") != "Admin":
+            return jsonify({"error": "Bạn không có quyền truy cập"}), 403
+
+        data = request.json
+        full_name = data.get("full_name")
+        role = data.get("role")
+        is_active = data.get("is_active")
+
+        if not all([full_name, role, is_active is not None]):
+            return jsonify({"error": "Thiếu thông tin cần thiết"}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Update the user's information
+        cursor.execute(
+            """
+            UPDATE Users
+            SET FullName = ?, Role = ?, IsActive = ?
+            WHERE UserID = ?
+            """,
+            (full_name, role, is_active, user_id)
+        )
+
+        conn.commit()
+        conn.close()
+
+        return jsonify({"message": "Cập nhật thông tin người dùng thành công"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# API xóa người dùng chỉ cho Admin
+@app.route("/users/<int:user_id>", methods=["DELETE"])
+def delete_user(user_id):
+    try:
+        # Check if the user is logged in
+        current_user = session.get("user")
+        if not current_user:
+            return jsonify({"error": "Bạn chưa đăng nhập"}), 401
+
+        # Restrict access to Admin role
+        if current_user.get("role") != "Admin":
+            return jsonify({"error": "Bạn không có quyền truy cập"}), 403
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Check if the user exists
+        cursor.execute("SELECT UserID FROM Users WHERE UserID = ?", (user_id,))
+        user = cursor.fetchone()
+
+        if not user:
+            conn.close()
+            return jsonify({"error": "Người dùng không tồn tại"}), 404
+
+        # Delete the user
+        cursor.execute("DELETE FROM Users WHERE UserID = ?", (user_id,))
+        conn.commit()
+        conn.close()
+
+        return jsonify({"message": "Xóa người dùng thành công"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# API lấy người dùng theo vai trò chỉ cho Admin
+@app.route("/users/role/<string:role>", methods=["GET"])
+def get_users_by_role(role):
+    try:
+        # Check if the user is logged in
+        current_user = session.get("user")
+        if not current_user:
+            return jsonify({"error": "Bạn chưa đăng nhập"}), 401
+
+        # Restrict access to Admin role
+        if current_user.get("role") != "Admin":
+            return jsonify({"error": "Bạn không có quyền truy cập"}), 403
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Fetch users by role
+        cursor.execute("SELECT UserID, Username, FullName, Role, IsActive FROM Users WHERE Role = ?", (role,))
+        users = [
+            {
+                "user_id": row[0],
+                "username": row[1],
+                "full_name": row[2],
+                "role": row[3],
+                "is_active": row[4]
+            }
+            for row in cursor.fetchall()
+        ]
+
+        conn.close()
+        return jsonify(users), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# API hủy kích hoạt tài khoản người dùng chỉ cho Admin
+@app.route("/users/<int:user_id>/deactivate", methods=["POST"])
+def deactivate_user(user_id):
+    try:
+        # Check if the user is logged in
+        current_user = session.get("user")
+        if not current_user:
+            return jsonify({"error": "Bạn chưa đăng nhập"}), 401
+
+        # Restrict access to Admin role
+        if current_user.get("role") != "Admin":
+            return jsonify({"error": "Bạn không có quyền truy cập"}), 403
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Check if the user exists
+        cursor.execute("SELECT UserID FROM Users WHERE UserID = ?", (user_id,))
+        user = cursor.fetchone()
+
+        if not user:
+            conn.close()
+            return jsonify({"error": "Người dùng không tồn tại"}), 404
+
+        # Deactivate the user account
+        cursor.execute("UPDATE Users SET IsActive = 0 WHERE UserID = ?", (user_id,))
+        conn.commit()
+        conn.close()
+
+        return jsonify({"message": "Tài khoản người dùng đã được hủy kích hoạt"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# API hủy kích hoạt tài khoản Insured chỉ cho ContractCreator
+@app.route("/insured/<int:insured_id>/deactivate", methods=["POST"])
+def deactivate_insured_account(insured_id):
+    try:
+        # Check if the user is logged in
+        current_user = session.get("user")
+        if not current_user:
+            return jsonify({"error": "Bạn chưa đăng nhập"}), 401
+
+        # Restrict access to ContractCreator role
+        if current_user.get("role") != "ContractCreator":
+            return jsonify({"error": "Bạn không có quyền truy cập"}), 403
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Check if the insured person exists
+        cursor.execute("SELECT InsuredPersonID FROM InsuredPersons WHERE InsuredPersonID = ?", (insured_id,))
+        insured_person = cursor.fetchone()
+
+        if not insured_person:
+            conn.close()
+            return jsonify({"error": "Người được bảo hiểm không tồn tại"}), 404
+
+        # Deactivate the insured account
+        cursor.execute("UPDATE InsuredPersons SET IsActive = 0 WHERE InsuredPersonID = ?", (insured_id,))
+        conn.commit()
+        conn.close()
+
+        return jsonify({"message": "Tài khoản người được bảo hiểm đã được hủy kích hoạt"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
