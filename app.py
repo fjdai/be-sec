@@ -15,7 +15,7 @@ CORS(app, resources={
         "allow_headers": ["Content-Type", "Authorization"]  # Các header được phép
     }
 })
-
+CORS(app, supports_credentials=True)
 
 @app.route("/")
 def home():
@@ -30,11 +30,16 @@ def about():
 # Cấu hình kết nối MSSQL
 def get_db_connection():
     connection = pyodbc.connect(
+        # "DRIVER={ODBC Driver 17 for SQL Server};"
+        # "SERVER=localhost;"  # Thay bằng tên hoặc IP của server
+        # "DATABASE=QLBaoHiem;"
+        # "UID=sa;"  # Thay bằng username
+        # "PWD=Matkhau04@;"  # Thay bằng password
+
         "DRIVER={ODBC Driver 17 for SQL Server};"
-        "SERVER=localhost;"  # Thay bằng tên hoặc IP của server
+        "SERVER=localhost;"
         "DATABASE=QLBaoHiem;"
-        "UID=sa;"  # Thay bằng username
-        "PWD=Matkhau04@;"  # Thay bằng password
+        "Trusted_Connection=yes;"
     )
     return connection
 
@@ -59,7 +64,7 @@ def check_db():
         return f"Lỗi kết nối cơ sở dữ liệu: {str(e)}"
 
 
-# API đăng ký
+# API đăng ký - xong
 @app.route("/register", methods=["POST"])
 def register():
     data = request.json
@@ -105,7 +110,7 @@ def register():
     return jsonify({"message": "Đăng ký thành công"}), 201
 
 
-# API đăng nhập
+# API đăng nhập - xong
 @app.route("/login", methods=["POST"])
 def login():
     data = request.json
@@ -161,7 +166,7 @@ def current_user():
     return jsonify({"error": "Chưa đăng nhập"}), 401
 
 
-# API đăng xuất
+# API đăng xuất - xong
 @app.route("/logout", methods=["POST"])
 def logout():
     session.pop("user", None)  # Remove the user from the session
@@ -864,7 +869,7 @@ def update_user(user_id):
         return jsonify({"error": str(e)}), 500
 
 
-# API xóa người dùng chỉ cho Admin
+# API xóa người dùng chỉ cho Admin - xong
 @app.route("/users/<int:user_id>", methods=["DELETE"])
 def delete_user(user_id):
     try:
