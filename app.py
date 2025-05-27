@@ -1004,3 +1004,32 @@ def deactivate_insured_account(insured_id):
         return jsonify({"message": "Tài khoản người được bảo hiểm đã được hủy kích hoạt"}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+if __name__ == "__main__":
+    # Tạo tài khoản admin nếu chưa tồn tại
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Kiểm tra xem tài khoản admin đã tồn tại chưa
+        cursor.execute("SELECT 1 FROM Users WHERE Username = ?", ("admin",))
+        if not cursor.fetchone():
+            # Hash mật khẩu admin
+            admin_password_hash = hashlib.sha256("admin".encode('utf-8')).digest()
+
+            # Tạo tài khoản admin
+            cursor.execute(
+                "INSERT INTO Users (Username, PasswordHash, FullName, Role, IsActive) VALUES (?, ?, ?, ?, 1)",
+                ("admin", admin_password_hash, "Administrator", "Admin")
+            )
+            conn.commit()
+            print("Tài khoản admin đã được tạo thành công.")
+        else:
+            print("Tài khoản admin đã tồn tại.")
+
+        conn.close()
+    except Exception as e:
+        print(f"Lỗi khi tạo tài khoản admin: {str(e)}")
+
+    app.run(debug=True)
