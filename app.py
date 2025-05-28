@@ -33,12 +33,13 @@ def get_db_connection():
         # "DRIVER={ODBC Driver 17 for SQL Server};"
         # "SERVER=localhost;"  # Thay bằng tên hoặc IP của server
         # "DATABASE=QLBaoHiem;"
-        # "UID=sa;"  # Thay bằng username
-        # "PWD=Matkhau04@;"  # Thay bằng password
+        
+        
 
         "DRIVER={ODBC Driver 17 for SQL Server};"
         "SERVER=localhost;"
         "DATABASE=QLBaoHiem;"
+        # "UID=sa;"  # Thay bằng username# "PWD=Matkhau04@;"  # Thay bằng password
         "Trusted_Connection=yes;"
     )
     return connection
@@ -158,8 +159,8 @@ def login():
     }), 200
 
 
-# API lấy thông tin người dùng hiện tại
-@app.route("/current-user", methods=["GET"])
+# API lấy thông tin người dùng hiện tại - xong
+@app.route("/current-user", methods=["GET"]) 
 def current_user():
     if "user" in session:
         return jsonify(session["user"])
@@ -173,7 +174,7 @@ def logout():
     return jsonify({"message": "Đăng xuất thành công"}), 200
 
 
-# API lấy danh sách hợp đồng chỉ cho ContractCreator
+# API lấy danh sách hợp đồng chỉ cho ContractCreator - xong
 @app.route("/insurance-types", methods=["GET"])
 def get_insurance_types():
     try:
@@ -197,7 +198,7 @@ def get_insurance_types():
         return jsonify({"error": str(e)}), 500
 
 
-# API lấy danh sách người được bảo hiểm chỉ cho ContractCreator
+# API lấy danh sách người được bảo hiểm chỉ cho ContractCreator - xem lai
 @app.route("/insured-persons/<int:person_id>", methods=["GET"])
 def get_insured_person_by_id(person_id):
     try:
@@ -241,7 +242,7 @@ def get_insured_person_by_id(person_id):
         return jsonify({"error": str(e)}), 500
 
 
-# API tạo hợp đồng bảo hiểm chỉ cho ContractCreator
+# API tạo hợp đồng bảo hiểm chỉ cho ContractCreator - xong
 @app.route("/insurance-contracts", methods=["POST"])
 def create_insurance_contract():
     try:
@@ -734,7 +735,7 @@ def update_insurance_contract(contract_id):
         return jsonify({"error": str(e)}), 500
 
 
-# API sửa thông tin người được bảo hiểm chỉ cho ContractCreator
+# API sửa thông tin người được bảo hiểm chỉ cho ContractCreator - 
 @app.route("/insured-persons/<int:person_id>", methods=["PUT"])
 def update_insured_person(person_id):
     try:
